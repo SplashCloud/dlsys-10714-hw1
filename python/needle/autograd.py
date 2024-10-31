@@ -379,9 +379,16 @@ def compute_gradient_of_variables(output_tensor, out_grad):
     # Traverse graph in reverse topological order given the output_node that we are taking gradient wrt.
     reverse_topo_order = list(reversed(find_topo_sort([output_tensor])))
 
-    ### BEGIN YOUR SOLUTION
-    raise NotImplementedError()
-    ### END YOUR SOLUTION
+    for node in reverse_topo_order:
+      node.grad = sum(node_to_output_grads_list[node])
+      if node.op is None: # leaf node
+        continue
+      gradients = node.op.gradient_as_tuple(node.grad, node)
+      n_inputs = len(node.inputs)
+      for i in range(n_inputs):
+        if node.inputs[i] not in node_to_output_grads_list.keys():
+          node_to_output_grads_list[node.inputs[i]] = []
+        node_to_output_grads_list[node.inputs[i]].append(gradients[i])
 
 
 def find_topo_sort(node_list: List[Value]) -> List[Value]:
@@ -392,16 +399,28 @@ def find_topo_sort(node_list: List[Value]) -> List[Value]:
     after all its predecessors are traversed due to post-order DFS, we get a topological
     sort.
     """
-    ### BEGIN YOUR SOLUTION
-    raise NotImplementedError()
-    ### END YOUR SOLUTION
+    visited = set()
+    topo_order = []
+    for node in node_list:
+      topo_sort_dfs(node, visited, topo_order)
+    return topo_order
 
 
 def topo_sort_dfs(node, visited, topo_order):
     """Post-order DFS"""
-    ### BEGIN YOUR SOLUTION
-    raise NotImplementedError()
-    ### END YOUR SOLUTION
+    if id(node) in visited:
+      return
+    if node.is_leaf():
+      visited.add(id(node))
+      topo_order.append(node)
+      return
+    lhs = node.inputs[0]
+    topo_sort_dfs(lhs, visited, topo_order)
+    if len(node.inputs) > 1:
+      rhs = node.inputs[1]
+      topo_sort_dfs(rhs, visited, topo_order)
+    visited.add(id(node))
+    topo_order.append(node)
 
 
 ##############################

@@ -10,7 +10,7 @@ sys.path.append("python/")
 import needle as ndl
 
 
-def parse_mnist(image_filesname, label_filename):
+def parse_mnist(image_filename, label_filename):
     """Read an images and labels file in MNIST format.  See this page:
     http://yann.lecun.com/exdb/mnist/ for a description of the file format.
 
@@ -33,7 +33,37 @@ def parse_mnist(image_filesname, label_filename):
                 for MNIST will contain the values 0-9.
     """
     ### BEGIN YOUR SOLUTION
-    raise NotImplementedError()
+    with gzip.open(image_filename) as f:
+      magic_number = f.read(4)
+      N_images = struct.unpack(">i", f.read(4))[0]
+      row = struct.unpack(">i", f.read(4))[0]
+      col = struct.unpack(">i", f.read(4))[0]
+      print(f'N_images={N_images}, row={row}, col={col}')
+      X = []
+      for _ in range(N_images):
+        item = []
+        for _ in range(row):
+          for _ in range(col):
+            pixel = struct.unpack(">B", f.read(1))[0]
+            item.append(pixel)
+        X.append(item)
+    
+    with gzip.open(label_filename) as f:
+      magic_number = f.read(4)
+      N_labels = struct.unpack(">i", f.read(4))[0]
+      print(f'N_labels={N_labels}')
+      y = []
+      for _ in range(N_labels):
+        label = struct.unpack(">B", f.read(1))[0]
+        y.append(label)
+    
+    def norm(arr):
+      min_v = np.min(arr)
+      max_v = np.max(arr)
+      return (arr - min_v) / (max_v - min_v)
+    
+    X = np.array(X, dtype=np.float32) 
+    return norm(X), np.array(y, dtype=np.uint8)
     ### END YOUR SOLUTION
 
 
@@ -54,7 +84,7 @@ def softmax_loss(Z, y_one_hot):
         Average softmax loss over the sample. (ndl.Tensor[np.float32])
     """
     ### BEGIN YOUR SOLUTION
-    raise NotImplementedError()
+    return (ndl.log(ndl.exp(Z).sum(axes=(1,))) - (Z * y_one_hot).sum(axes=(1,))).sum(axes=(0,)) / Z.shape[0]
     ### END YOUR SOLUTION
 
 
@@ -83,7 +113,51 @@ def nn_epoch(X, y, W1, W2, lr=0.1, batch=100):
     """
 
     ### BEGIN YOUR SOLUTION
-    raise NotImplementedError()
+    n = X.shape[0]
+    total_batch = []
+    batch_num = n // batch
+    i = 1
+    while i <= batch_num:
+      total_batch.append(
+        (
+          X[(i-1)*batch : i*batch],
+          y[(i-1)*batch : i*batch]
+        )
+      )
+      i += 1
+    if n % batch != 0:
+      total_batch.append(
+        (
+          X[(i-1)*batch : ],
+          y[(i-1)*batch : ]
+        )
+      )
+
+    cnt = 0
+    for single_batch in total_batch:
+      X0, y0 = single_batch
+      X_batch = ndl.Tensor(X0) # B x n
+      y_one_hot = np.zeros(shape=(X_batch.shape[0], W2.shape[1]))
+      y_one_hot[np.arange(y_one_hot.shape[0]), y0] = 1
+      y_batch = ndl.Tensor(y_one_hot) # B x k
+      # W1: n x d, W2: d x k
+      Z = ndl.matmul(ndl.relu(ndl.matmul(X_batch, W1)), W2) # B x k
+      loss = softmax_loss(Z, y_batch)
+      loss.backward()
+      loss.detach()
+      cnt += 1
+      print(f"finish backward: {cnt}")
+      # W1 = ndl.Tensor(W1.realize_cached_data() - lr * W1.grad.realize_cached_data())
+      # W2 = ndl.Tensor(W2.realize_cached_data() - lr * W2.grad.realize_cached_data())
+      W1 = (W1 - lr * W1.grad).detach()
+      W2 = (W2 - lr * W2.grad).detach()
+      ######## ERROR UPDATE #########
+      # W1 = W1 - lr * W1.grad #
+      # W2 = W2 - lr * W2.grad #
+      # W1 and W2 still point to origin computation graph, so that it will eat up the memory
+      ##################################
+    print(f"totoal backward: {cnt}")
+    return (W1, W2)
     ### END YOUR SOLUTION
 
 
